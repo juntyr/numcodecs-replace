@@ -81,6 +81,7 @@ def test_roundtrip():
     with pytest.warns(RuntimeWarning, match="empty slice"):
         check_roundtrip(np.zeros((0,)))
     check_roundtrip(np.arange(1000).reshape(10, 10, 10))
+    check_roundtrip(np.array([4.2, -2.4, np.nan, -np.nan, 0.0, -0.0]))
     check_roundtrip(np.array([np.inf, -np.inf, np.nan, -np.nan, 0.0, -0.0]))
     check_roundtrip(
         np.array(

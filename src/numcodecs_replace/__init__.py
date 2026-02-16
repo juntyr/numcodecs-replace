@@ -153,7 +153,10 @@ class ReplaceFilterCodec(Codec):
         }
 
         for k, v in replacements.items():
-            a[a == k] = v
+            if isinstance(k, int) or not np.isnan(k):
+                a[a == k] = v
+            else:
+                a[np.isnan(a)] = v
 
         return a  # type: ignore
 
