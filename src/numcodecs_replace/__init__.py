@@ -96,6 +96,11 @@ class ReplaceFilterCodec(Codec):
 
     When replacing NaN values, all values that are NaN are replaced,
     irrespective of their bitpatterns.
+
+    Parameters
+    ----------
+    replacements : dict[int | float, int | float | Replacement | Literal["finite_min", "finite_mean", "finite_max", "nan_min", "nan_mean", "nan_max"]]
+        Mapping from values to be replaced to the replacement values.
     """
 
     __slots__ = "_replacements"
