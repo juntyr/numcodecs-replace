@@ -1,3 +1,5 @@
+import json
+
 import numcodecs
 import numcodecs.registry
 import numpy as np
@@ -11,19 +13,23 @@ def test_from_config():
 
 
 def check_roundtrip(data: np.ndarray):
-    codec = numcodecs.registry.get_codec(
-        dict(
-            id="replace.filter",
-            replacements={
-                -np.inf: "finite_min",
-                0: "finite_mean",
-                +np.inf: "finite_max",
-                -1: "nan_min",
-                np.nan: "nan_mean",
-                +1: "nan_max",
-                24: 42,
-            },
-        )
+    config = dict(
+        id="replace.filter",
+        replacements={
+            -np.inf: "finite_min",
+            0: "finite_mean",
+            +np.inf: "finite_max",
+            -1: "nan_min",
+            np.nan: "nan_mean",
+            +1: "nan_max",
+            24: 42,
+        },
+    )
+
+    codec = numcodecs.registry.get_codec(config)
+
+    assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(
+        config, sort_keys=True
     )
 
     encoded = codec.encode(data)

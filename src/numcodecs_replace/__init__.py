@@ -203,7 +203,7 @@ class ReplaceFilterCodec(Codec):
         return dict(
             id=type(self).codec_id,
             replacements={
-                k: (str(v) if isinstance(v, Replacement) else v)
+                k: (v.name if isinstance(v, Replacement) else v)
                 for k, v in self._replacements.items()
             },
         )
