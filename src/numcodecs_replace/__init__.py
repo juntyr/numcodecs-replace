@@ -208,5 +208,12 @@ class ReplaceFilterCodec(Codec):
             },
         )
 
+    def __repr__(self) -> str:
+        replacements = {
+            k: (v.name if isinstance(v, Replacement) else v)
+            for k, v in self._replacements.items()
+        }
+        return f"{type(self).__name__}(replacements={replacements!r})"
+
 
 numcodecs.registry.register_codec(ReplaceFilterCodec)

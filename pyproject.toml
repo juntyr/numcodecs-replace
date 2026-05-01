@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "numcodecs-replace"
-version = "0.1.1"
+version = "0.1.2"
 description = "Value replacement codecs for the `numcodecs` buffer compression API"
 readme = "README.md"
 license = "MPL-2.0"

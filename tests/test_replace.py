@@ -11,6 +11,8 @@ def test_from_config():
     assert codec.__class__.__name__ == "ReplaceFilterCodec"
     assert codec.__class__.__module__ == "numcodecs_replace"
 
+    assert repr(codec) == "ReplaceFilterCodec(replacements={})"
+
 
 def check_roundtrip(data: np.ndarray):
     config = dict(
@@ -27,6 +29,11 @@ def check_roundtrip(data: np.ndarray):
     )
 
     codec = numcodecs.registry.get_codec(config)
+
+    assert (
+        repr(codec)
+        == "ReplaceFilterCodec(replacements={-inf: 'finite_min', 0: 'finite_mean', inf: 'finite_max', -1: 'nan_min', nan: 'nan_mean', 1: 'nan_max', 24: 42})"
+    )
 
     assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(
         config, sort_keys=True
