@@ -6,15 +6,44 @@ import numpy as np
 import pytest
 
 
-def test_from_config():
-    codec = numcodecs.registry.get_codec(dict(id="replace.filter", replacements={}))
+def test_filter_from_config():
+    config = dict(id="replace.filter", replacements={})
+
+    codec = numcodecs.registry.get_codec(config)
     assert codec.__class__.__name__ == "ReplaceFilterCodec"
     assert codec.__class__.__module__ == "numcodecs_replace"
 
     assert repr(codec) == "ReplaceFilterCodec(replacements={})"
 
+    assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(
+        config, sort_keys=True
+    )
 
-def check_roundtrip(data: np.ndarray):
+
+def test_meta_from_config():
+    config = dict(
+        id="replace.meta",
+        replace=np.nan,
+        with_=0,
+        codec=dict(id="zlib", level=1),
+        bitmap_codec=dict(id="packbits"),
+    )
+
+    codec = numcodecs.registry.get_codec(config)
+    assert codec.__class__.__name__ == "ReplaceMetaCodec"
+    assert codec.__class__.__module__ == "numcodecs_replace"
+
+    assert (
+        repr(codec)
+        == "ReplaceMetaCodec(replace=nan, with_=0, codec=Zlib(level=1), bitmap_codec=PackBits())"
+    )
+
+    assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(
+        config, sort_keys=True
+    )
+
+
+def check_filter_roundtrip(data: np.ndarray):
     config = dict(
         id="replace.filter",
         replacements={
@@ -89,20 +118,20 @@ def check_roundtrip(data: np.ndarray):
 
 
 @np.errstate(invalid="ignore")
-def test_roundtrip():
-    check_roundtrip(np.zeros(tuple()))
+def test_filter_roundtrip():
+    check_filter_roundtrip(np.zeros(tuple()))
     with pytest.warns(RuntimeWarning, match="empty slice"):
-        check_roundtrip(np.zeros((0,)))
-    check_roundtrip(np.arange(1000).reshape(10, 10, 10))
-    check_roundtrip(np.array([4.2, -2.4, np.nan, -np.nan, 0.0, -0.0]))
-    check_roundtrip(np.array([np.inf, -np.inf, np.nan, -np.nan, 0.0, -0.0]))
-    check_roundtrip(
+        check_filter_roundtrip(np.zeros((0,)))
+    check_filter_roundtrip(np.arange(1000).reshape(10, 10, 10))
+    check_filter_roundtrip(np.array([4.2, -2.4, np.nan, -np.nan, 0.0, -0.0]))
+    check_filter_roundtrip(np.array([np.inf, -np.inf, np.nan, -np.nan, 0.0, -0.0]))
+    check_filter_roundtrip(
         np.array(
             [np.inf, -np.inf, np.nan, -np.nan, 0.0, -0.0],
             dtype=np.dtype(np.float64).newbyteorder("<"),
         )
     )
-    check_roundtrip(
+    check_filter_roundtrip(
         np.array(
             [np.inf, -np.inf, np.nan, -np.nan, 0.0, -0.0],
             dtype=np.dtype(np.float64).newbyteorder(">"),

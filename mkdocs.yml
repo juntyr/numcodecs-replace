@@ -55,6 +55,7 @@ plugins:
             - https://docs.python.org/3.12/objects.inv
             - https://numpy.org/doc/2.2/objects.inv
             - https://numcodecs.readthedocs.io/en/v0.16.0/objects.inv
+            - https://numcodecs-combinators.readthedocs.io/en/v0.2.15/objects.inv
 
 watch:
   - src
