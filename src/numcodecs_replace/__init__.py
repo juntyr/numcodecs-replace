@@ -103,7 +103,7 @@ class ReplaceFilterCodec(Codec):
         Mapping from values to be replaced to the replacement values.
     """
 
-    __slots__ = "_replacements"
+    __slots__: tuple[str, ...] = ("_replacements",)
     _replacements: dict[
         int | float,
         int | float | Replacement,

@@ -7,11 +7,17 @@ import pytest
 
 
 def test_from_config():
-    codec = numcodecs.registry.get_codec(dict(id="replace.filter", replacements={}))
+    config = dict(id="replace.filter", replacements={})
+
+    codec = numcodecs.registry.get_codec(config)
     assert codec.__class__.__name__ == "ReplaceFilterCodec"
     assert codec.__class__.__module__ == "numcodecs_replace"
 
     assert repr(codec) == "ReplaceFilterCodec(replacements={})"
+
+    assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(
+        config, sort_keys=True
+    )
 
 
 def check_roundtrip(data: np.ndarray):
