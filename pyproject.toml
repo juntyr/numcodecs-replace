@@ -22,7 +22,7 @@ dev = ["mypy~=1.14", "pytest~=8.3"]
 
 [project.entry-points."numcodecs.codecs"]
 "replace.filter" = "numcodecs_replace:ReplaceFilterCodec"
-"replace.meta" = "numcodecs_replace:ReplaceMetaCodec"
+"mask.meta" = "numcodecs_replace:MaskMetaCodec"
 
 [tool.setuptools.packages.find]
 where = ["src"]

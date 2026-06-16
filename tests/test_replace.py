@@ -22,20 +22,19 @@ def test_filter_from_config():
 
 def test_meta_from_config():
     config = dict(
-        id="replace.meta",
-        replace=np.nan,
-        with_=0,
+        id="mask.meta",
+        mask=np.nan,
         codec=dict(id="zlib", level=1),
         bitmap_codec=dict(id="packbits"),
     )
 
     codec = numcodecs.registry.get_codec(config)
-    assert codec.__class__.__name__ == "ReplaceMetaCodec"
+    assert codec.__class__.__name__ == "MaskMetaCodec"
     assert codec.__class__.__module__ == "numcodecs_replace"
 
     assert (
         repr(codec)
-        == "ReplaceMetaCodec(replace=nan, with_=0, codec=Zlib(level=1), bitmap_codec=PackBits())"
+        == "MaskMetaCodec(mask=nan, codec=Zlib(level=1), bitmap_codec=PackBits())"
     )
 
     assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(

@@ -2,7 +2,7 @@
 Value replacement codecs for the [`numcodecs`][numcodecs] buffer compression API.
 """
 
-__all__ = ["ReplaceFilterCodec", "ReplaceMetaCodec", "Replacement"]
+__all__ = ["ReplaceFilterCodec", "MaskMetaCodec", "Replacement"]
 
 from collections.abc import Callable
 from enum import Enum, auto
@@ -224,68 +224,49 @@ class ReplaceFilterCodec(Codec):
 numcodecs.registry.register_codec(ReplaceFilterCodec)
 
 
-class ReplaceMetaCodec(Codec, CodecCombinatorMixin):
+class MaskMetaCodec(Codec, CodecCombinatorMixin):
     """
-    Meta-codec that replaces a value during encoding and restores it during decoding.
+    Meta-codec that masks a value during encoding and restores it during decoding.
 
-    The values-after-replacement are encoded with the `codec`, the
-    [boolean][numpy.bool] mask of where values were replaced is encoded with
-    the `bitmap_codec`.
+    The data is encoded with the `codec`, the [boolean][numpy.bool] mask of
+    where values need to be restored is encoded with the `bitmap_codec`.
 
-    The special [`Replacement`][..Replacement] values, e.g.
-    [`Replacement.nan_mean`][..Replacement.nan_mean], are derived from the data.
-    Multiple [`ReplaceMetaCodec`][.]s can be stacked, e.g. using the
+    Multiple [`MaskMetaCodec`][.]s can be nested to mask several values.
+    The masked value can be replaced with a fill value before further encoding
+    by including a [`ReplaceFilterCodec`][..ReplaceFilterCodec] in the `codec`,
+    e.g. by stacking using the
     [`numcodecs-combinators`](https://numcodecs-combinators.readthedocs.io)
-    package, to apply some replacements before computing e.g. the finite mean.
-
-    When replacing NaN values, all values that are NaN are replaced,
-    irrespective of their bitpatterns.
+    package.
 
     Parameters
     ----------
-    replace : int | float
-        The value to be replaced.
-    with_ : int | float | Replacement | Literal["finite_min", "finite_mean", "finite_max", "nan_min", "nan_mean", "nan_max"]
-        The replacement value.
+    mask : int | float
+        The value to be masked.
     codec : dict | Codec
-        The configuration or instantiated codec that encodes the values after
-        replacement.
+        The configuration or instantiated codec that encodes the data.
     bitmap_codec : dict | Codec
         The configuration or instantiated codec that encodes the
-        [boolean][numpy.bool] mask of where values were replaced.
+        [boolean][numpy.bool] mask of where values need to be restored.
 
         For instance, the [`numcodecs.PackBits`][numcodecs.packbits.PackBits]
         codec can be used to pack the mask into a byte array.
     """
 
-    __slots__: tuple[str, ...] = ("_replace", "_with", "_codec", "_bitmap_codec")
-    _replace: int | float
-    _with: int | float | Replacement
+    __slots__: tuple[str, ...] = ("_mask", "_codec", "_bitmap_codec")
+    _mask: int | float
     _codec: Codec
     _bitmap_codec: Codec
 
-    codec_id: str = "replace.meta"  # type: ignore
+    codec_id: str = "mask.meta"  # type: ignore
 
     def __init__(
         self,
         *,
-        replace: int | float,
-        with_: int
-        | float
-        | Replacement
-        | Literal[
-            "finite_min",
-            "finite_mean",
-            "finite_max",
-            "nan_min",
-            "nan_mean",
-            "nan_max",
-        ],
+        mask: int | float,
         codec: dict | Codec,
         bitmap_codec: dict | Codec,
     ) -> None:
-        self._replace = replace
-        self._with = Replacement[with_] if isinstance(with_, str) else with_
+        self._mask = mask
         self._codec = (
             codec if isinstance(codec, Codec) else numcodecs.registry.get_codec(codec)
         )
@@ -314,15 +295,10 @@ class ReplaceMetaCodec(Codec, CodecCombinatorMixin):
         a = np.copy(numcodecs.compat.ensure_ndarray(buf))
         dtype, shape = a.dtype, a.shape
 
-        with_ = (
-            self._with.compute(a) if isinstance(self._with, Replacement) else self._with
-        )
-
-        if isinstance(self._replace, int) or not np.isnan(self._replace):
-            is_replace = a == self._replace
+        if isinstance(self._mask, int) or not np.isnan(self._mask):
+            is_masked = a == self._mask
         else:
-            is_replace = np.isnan(a)
-        a[is_replace] = with_
+            is_masked = np.isnan(a)
 
         # message: dtype shape encoded-dtype encoded-shape [padding] encoded
         #          bitmap-dtype bitmap-shape [padding] bitmap
@@ -357,7 +333,7 @@ class ReplaceMetaCodec(Codec, CodecCombinatorMixin):
         # ensure that the encoded values are encoded in little endian binary
         message.append(encoded.astype(encoded.dtype.newbyteorder("<")).tobytes())
 
-        bitmap = self._bitmap_codec.encode(is_replace)
+        bitmap = self._bitmap_codec.encode(is_masked)
         bitmap = numcodecs.compat.ensure_ndarray(bitmap)
 
         message.append(leb128.u.encode(len(bitmap.dtype.str)))
@@ -456,16 +432,16 @@ class ReplaceMetaCodec(Codec, CodecCombinatorMixin):
             .reshape(bitmap_shape)
         )
 
-        is_replace = np.empty(shape, dtype=np.bool)
-        self._bitmap_codec.decode(bitmap, out=is_replace)
+        is_masked = np.empty(shape, dtype=np.bool)
+        self._bitmap_codec.decode(bitmap, out=is_masked)
 
-        decoded[is_replace] = self._replace
+        decoded[is_masked] = self._mask
 
         return numcodecs.compat.ndarray_copy(decoded, out)  # type: ignore
 
     def get_config(self) -> dict:
         """
-        Returns the configuration of this replacement filter codec.
+        Returns the configuration of this mask meta-codec.
 
         [`numcodecs.registry.get_codec(config)`][numcodecs.registry.get_codec]
         can be used to reconstruct this codec from the returned config.
@@ -473,28 +449,24 @@ class ReplaceMetaCodec(Codec, CodecCombinatorMixin):
         Returns
         -------
         config : dict
-            Configuration of this replacement filter codec.
+            Configuration of this mask meta-codec.
         """
 
         return dict(
             id=type(self).codec_id,
-            replace=self._replace,
-            with_=self._with.name
-            if isinstance(self._with, Replacement)
-            else self._with,
+            mask=self._mask,
             codec=self._codec.get_config(),
             bitmap_codec=self._bitmap_codec.get_config(),
         )
 
     def __repr__(self) -> str:
-        with_ = self._with.name if isinstance(self._with, Replacement) else self._with
-        return f"{type(self).__name__}(replace={self._replace!r}, with_={with_!r}, codec={self._codec!r}, bitmap_codec={self._bitmap_codec!r})"
+        return f"{type(self).__name__}(mask={self._mask!r}, codec={self._codec!r}, bitmap_codec={self._bitmap_codec!r})"
 
-    def map(self, mapper: Callable[[Codec], Codec]) -> "ReplaceMetaCodec":
+    def map(self, mapper: Callable[[Codec], Codec]) -> "MaskMetaCodec":
         """
-        Apply the `mapper` to this replacement meta-codec.
+        Apply the `mapper` to this mask meta-codec.
 
-        In the returned [`ReplaceMetaCodec`][..], the `codec` and
+        In the returned [`MaskMetaCodec`][..], the `codec` and
         `bitmap_codec` are replaced by their mapped codecs.
 
         The `mapper` should recursively apply itself to any inner codecs that
@@ -513,20 +485,19 @@ class ReplaceMetaCodec(Codec, CodecCombinatorMixin):
         ----------
         mapper : Callable[[Codec], Codec]
             The callable that should be applied to the wrapped `codec` and
-            `bitmap_codec` to map over this replacement meta-codec.
+            `bitmap_codec` to map over this mask meta-codec.
 
         Returns
         -------
-        mapped : ReplaceMetaCodec
-            The mapped replacement meta-codec.
+        mapped : MaskMetaCodec
+            The mapped mask meta-codec.
         """
 
-        return ReplaceMetaCodec(
-            replace=self._replace,
-            with_=self._with,
+        return MaskMetaCodec(
+            mask=self._mask,
             codec=mapper(self._codec),
             bitmap_codec=mapper(self._bitmap_codec),
         )
 
 
-numcodecs.registry.register_codec(ReplaceMetaCodec)
+numcodecs.registry.register_codec(MaskMetaCodec)
