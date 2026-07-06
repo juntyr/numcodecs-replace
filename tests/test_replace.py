@@ -15,34 +15,43 @@ def test_from_config():
 
     assert repr(codec) == "ReplaceFilterCodec(replacements={})"
 
-    assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(
-        config, sort_keys=True
-    )
+    assert json.dumps(codec.get_config()) == json.dumps(config)
 
 
 def check_roundtrip(data: np.ndarray):
-    config = dict(
-        id="replace.filter",
-        replacements={
-            -np.inf: "finite_min",
-            0: "finite_mean",
-            +np.inf: "finite_max",
-            -1: "nan_min",
-            np.nan: "nan_mean",
-            +1: "nan_max",
-            24: 42,
-        },
+    codec = numcodecs.registry.get_codec(
+        dict(
+            id="replace.filter",
+            replacements={
+                -np.inf: "finite_min",
+                0: "finite_mean",
+                "inf": "finite_max",
+                -1: "nan_min",
+                np.nan: "nan_mean",
+                +1: "nan_max",
+                24: 42,
+            },
+        )
     )
-
-    codec = numcodecs.registry.get_codec(config)
 
     assert (
         repr(codec)
         == "ReplaceFilterCodec(replacements={-inf: 'finite_min', 0: 'finite_mean', inf: 'finite_max', -1: 'nan_min', nan: 'nan_mean', 1: 'nan_max', 24: 42})"
     )
 
-    assert json.dumps(codec.get_config(), sort_keys=True) == json.dumps(
-        config, sort_keys=True
+    assert json.dumps(codec.get_config()) == json.dumps(
+        dict(
+            id="replace.filter",
+            replacements={
+                "-inf": "finite_min",
+                0: "finite_mean",
+                "inf": "finite_max",
+                -1: "nan_min",
+                "nan": "nan_mean",
+                +1: "nan_max",
+                24: 42,
+            },
+        )
     )
 
     encoded = codec.encode(data)

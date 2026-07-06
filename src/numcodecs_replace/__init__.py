@@ -99,7 +99,7 @@ class ReplaceFilterCodec(Codec):
 
     Parameters
     ----------
-    replacements : dict[int | float, int | float | Replacement | Literal["finite_min", "finite_mean", "finite_max", "nan_min", "nan_mean", "nan_max"]]
+    replacements : dict[int | float | Literal["inf", "-inf", "nan"], int | float | Replacement | Literal["finite_min", "finite_mean", "finite_max", "nan_min", "nan_mean", "nan_max"]]
         Mapping from values to be replaced to the replacement values.
     """
 
@@ -115,7 +115,7 @@ class ReplaceFilterCodec(Codec):
         self,
         *,
         replacements: dict[
-            int | float,
+            int | float | Literal["inf", "-inf", "nan"],
             int
             | float
             | Replacement
@@ -130,7 +130,7 @@ class ReplaceFilterCodec(Codec):
         ],
     ) -> None:
         self._replacements = {
-            k: (Replacement[v] if isinstance(v, str) else v)
+            _unescape_non_finite(k): (Replacement[v] if isinstance(v, str) else v)
             for k, v in replacements.items()
         }
 
@@ -203,7 +203,7 @@ class ReplaceFilterCodec(Codec):
         return dict(
             id=type(self).codec_id,
             replacements={
-                k: (v.name if isinstance(v, Replacement) else v)
+                _escape_non_finite(k): (v.name if isinstance(v, Replacement) else v)
                 for k, v in self._replacements.items()
             },
         )
@@ -217,3 +217,21 @@ class ReplaceFilterCodec(Codec):
 
 
 numcodecs.registry.register_codec(ReplaceFilterCodec)
+
+
+def _unescape_non_finite(x: int | float | Literal["inf", "-inf", "nan"]) -> int | float:
+    if isinstance(x, int | float):
+        return x
+    return float(x)
+
+
+def _escape_non_finite(x: int | float) -> int | float | Literal["inf", "-inf", "nan"]:
+    if isinstance(x, int):
+        return x
+    if np.isnan(x):
+        return "nan"
+    if x == np.inf:
+        return "inf"
+    if x == -np.inf:
+        return "-inf"
+    return x
