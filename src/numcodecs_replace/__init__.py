@@ -2,7 +2,7 @@
 Value replacement codecs for the [`numcodecs`][numcodecs] buffer compression API.
 """
 
-__all__ = ["ReplaceFilterCodec", "Replacement"]
+__all__ = ["ReplaceFilterCodec", "ThresholdFilterCodec", "Replacement"]
 
 from enum import Enum, auto
 from typing import Literal, TypeVar
@@ -217,6 +217,143 @@ class ReplaceFilterCodec(Codec):
 
 
 numcodecs.registry.register_codec(ReplaceFilterCodec)
+
+
+class ThresholdFilterCodec(Codec):
+    """
+    Filter codec that replaces all values whose magnitude is below a
+    `threshold` during encoding and passes through the data during decoding.
+
+    This is useful to drop negligible values before further (lossy)
+    compression, e.g. to spend a part of a mean error budget on setting the
+    smallest values of a heavy-tailed field to zero, which can then be masked
+    and skipped by the subsequent codecs.
+
+    Parameters
+    ----------
+    threshold : int | float
+        Values `x` with `|x| < threshold` are replaced. NaN values are never
+        replaced.
+    replacement : int | float | Replacement | Literal["finite_min", "finite_mean", "finite_max", "nan_min", "nan_mean", "nan_max"], optional
+        The replacement value, zero by default. The special
+        [`Replacement`][..Replacement] values are derived from the data before
+        the replacement is made.
+    """
+
+    __slots__: tuple[str, ...] = ("_threshold", "_replacement")
+    _threshold: int | float
+    _replacement: int | float | Replacement
+
+    codec_id: str = "replace.threshold"  # type: ignore
+
+    def __init__(
+        self,
+        *,
+        threshold: int | float,
+        replacement: int
+        | float
+        | Replacement
+        | Literal[
+            "finite_min",
+            "finite_mean",
+            "finite_max",
+            "nan_min",
+            "nan_mean",
+            "nan_max",
+        ] = 0,
+    ) -> None:
+        if not (threshold >= 0):
+            raise ValueError("threshold must be non-negative")
+
+        self._threshold = threshold
+        self._replacement = (
+            Replacement[replacement] if isinstance(replacement, str) else replacement
+        )
+
+    def encode(self, buf: Buffer) -> Buffer:
+        """Encode the data in `buf`.
+
+        Parameters
+        ----------
+        buf : Buffer
+            Data to be encoded. May be any object supporting the new-style
+            buffer protocol.
+
+        Returns
+        -------
+        enc : Buffer
+            Encoded data. May be any object supporting the new-style buffer
+            protocol.
+        """
+
+        a = np.copy(numcodecs.compat.ensure_ndarray(buf))
+
+        replacement = (
+            self._replacement.compute(a)
+            if isinstance(self._replacement, Replacement)
+            else self._replacement
+        )
+
+        with np.errstate(invalid="ignore"):
+            a[np.abs(a) < self._threshold] = replacement
+
+        return a  # type: ignore
+
+    def decode(self, buf: Buffer, out: None | Buffer = None) -> Buffer:
+        """
+        Decode the data in `buf`.
+
+        Parameters
+        ----------
+        buf : Buffer
+            Encoded data. May be any object supporting the new-style buffer
+            protocol.
+        out : Buffer, optional
+            Writeable buffer to store decoded data. N.B. if provided, this buffer must
+            be exactly the right size to store the decoded data.
+
+        Returns
+        -------
+        dec : Buffer
+            Decoded data. May be any object supporting the new-style buffer
+            protocol.
+        """
+
+        return numcodecs.compat.ndarray_copy(buf, out)  # type: ignore
+
+    def get_config(self) -> dict:
+        """
+        Returns the configuration of this threshold filter codec.
+
+        [`numcodecs.registry.get_codec(config)`][numcodecs.registry.get_codec]
+        can be used to reconstruct this codec from the returned config.
+
+        Returns
+        -------
+        config : dict
+            Configuration of this threshold filter codec.
+        """
+
+        return dict(
+            id=type(self).codec_id,
+            threshold=self._threshold,
+            replacement=(
+                self._replacement.name
+                if isinstance(self._replacement, Replacement)
+                else self._replacement
+            ),
+        )
+
+    def __repr__(self) -> str:
+        replacement = (
+            self._replacement.name
+            if isinstance(self._replacement, Replacement)
+            else self._replacement
+        )
+        return f"{type(self).__name__}(threshold={self._threshold!r}, replacement={replacement!r})"
+
+
+numcodecs.registry.register_codec(ThresholdFilterCodec)
 
 
 def _unescape_non_finite(x: int | float | Literal["inf", "-inf", "nan"]) -> int | float:

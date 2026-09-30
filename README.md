@@ -6,7 +6,7 @@
 
 # numcodecs-replace
 
-Value replacement codecs for the [`numcodecs`] buffer compression API.
+Value replacement codecs for the [`numcodecs`] buffer compression API: `ReplaceFilterCodec` replaces configured values, `ThresholdFilterCodec` replaces all values whose magnitude is below a threshold (e.g. to drop negligible values before lossy compression).
 
 [`numcodecs`]: https://numcodecs.readthedocs.io/en/stable/
 

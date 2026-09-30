@@ -127,3 +127,39 @@ def test_roundtrip():
 
 def _as_bits(a: np.ndarray) -> np.ndarray:
     return a.view(a.dtype.str.replace("f", "u").replace("i", "u"))
+
+
+def test_threshold_from_config():
+    codec = numcodecs.registry.get_codec(
+        dict(id="replace.threshold", threshold=1e-3, replacement=0.0)
+    )
+    assert codec.__class__.__name__ == "ThresholdFilterCodec"
+    assert codec.__class__.__module__ == "numcodecs_replace"
+    assert repr(codec) == "ThresholdFilterCodec(threshold=0.001, replacement=0.0)"
+    assert codec.get_config() == dict(
+        id="replace.threshold", threshold=1e-3, replacement=0.0
+    )
+    with pytest.raises(ValueError):
+        numcodecs.registry.get_codec(dict(id="replace.threshold", threshold=-1.0))
+
+
+@np.errstate(invalid="ignore")
+def test_threshold_roundtrip():
+    data = np.array([0.5, -0.5, 1e-4, -1e-4, 0.0, -0.0, np.nan, np.inf, -np.inf, 1e-3])
+
+    codec = numcodecs.registry.get_codec(dict(id="replace.threshold", threshold=1e-3))
+    encoded = codec.encode(data)
+    expected = np.array([0.5, -0.5, 0.0, 0.0, 0.0, 0.0, np.nan, np.inf, -np.inf, 1e-3])
+    assert np.all((encoded == expected) | (np.isnan(encoded) & np.isnan(expected)))
+    decoded = codec.decode(encoded)
+    assert np.all(_as_bits(decoded) == _as_bits(encoded))
+
+    codec = numcodecs.registry.get_codec(
+        dict(id="replace.threshold", threshold=0.2, replacement="finite_max")
+    )
+    encoded = codec.encode(np.array([0.1, -0.1, 0.3, 0.7]))
+    assert np.all(encoded == np.array([0.7, 0.7, 0.3, 0.7]))
+
+    codec = numcodecs.registry.get_codec(dict(id="replace.threshold", threshold=3))
+    encoded = codec.encode(np.arange(-5, 6))
+    assert np.all(encoded == np.array([-5, -4, -3, 0, 0, 0, 0, 0, 3, 4, 5]))
