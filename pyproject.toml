@@ -29,6 +29,7 @@ docs = [
 
 [project.entry-points."numcodecs.codecs"]
 "replace.filter" = "numcodecs_replace:ReplaceFilterCodec"
+"replace.threshold" = "numcodecs_replace:ThresholdFilterCodec"
 
 [tool.setuptools.packages.find]
 where = ["src"]
